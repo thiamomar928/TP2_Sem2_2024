@@ -1,0 +1,464 @@
+---
+title: "TP2"
+author: "Omar THIAM"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3 #profondeur table des matières
+    toc_float: true #table des matières flottante
+    number_sections: true #les numéros de section
+    code_folding: show #masquer ou démasquer les codes
+    keep_md: true #Garder une copie rmd
+institute: ENSAE Pierre Ndiaye
+subtitle: projet Statistique sous R et Python
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE, 
+  eval = TRUE, 
+  message = FALSE, 
+  warning = FALSE
+)
+```
+
+
+# Importations des Bibliothèques
+
+```{r}
+library(haven)
+library(tidyverse)
+library(here)
+library(readxl)
+library(sjPlot)
+library(ggplot2)
+library(expss)
+library(labelled)
+library(gtsummary)
+```
+
+# Importation et inspection de la base
+
+```{r importation de la base}
+projet_2 <- here::here()
+past <- paste0(projet_2,"/Base TP2.xlsx")
+projet_2_nd <- read_xlsx(past)
+base_tp2 <- data.frame(projet_2_nd) 
+head(base_tp2)
+```
+
+Pour connaitre la dimension de la base projet_2, il est possible d'utilisé les fonctions comme **dim** ou **str**.
+
+```{r nbr_ligne_col}
+dim(base_tp2) # donne respectivement le nombre de ligne et de colonne
+```
+
+```{r}
+view(base_tp2)
+```
+
+Le nombre d'individus dans la base de données *base_tp2* est de 53, de meme le nombre de variables est de 30.
+
+**NB** : la fonction *str* donne les caractéristiques générales de la base (des variables).
+```{r}
+str(base_tp2)
+```
+
+**Tableau qui resume les valeurs manquantes par variable**
+
+Nous calculons d'abord la somme des valeurs manquantes par colonne avec la fonction colSums. Ensuite nous mettons les valeurs trouvées dans la variable nbr_NA.
+
+```{r}
+# Calculer le nombre de valeurs manquantes par colonne (variable)
+nbr_NA <- colSums(is.na(base_tp2))
+```
+
+Nous créons ensuite un dataframe pour y créer les colonnes Nbr_NA et pourcentage_NA qui affichent chacune le nombre de valeurs manquantes par colonne et leur pourcentage.
+
+```{r}
+# Créer un data frame résumant les valeurs manquantes
+data_NA <- data.frame(
+  Nbr_NA = nbr_NA,
+  Pourcentage_NA =100* nbr_NA/nrow(base_tp2)
+)
+data_NA
+```
+
+Nous affichons enfin les résultats avec la fonction kabke de knitr.
+
+```{r eval = FALSE}
+# Afficher le tableau
+knitr::kable(data_NA, 
+    align = c("c", "c", "c"), caption = 
+      "Valeurs manquantes par colonne")
+```
+
+
+La seule variable contenant des valeurs manquantes est *niveau_alphabs*.
+
+
+*Recherches de valeurs aberrantes*
+
+types_varietes et occupation sont les seules variables ayant des valeurs abérantes.
+
+Pour preuve
+
+```{r}
+boxplot(base_tp2$formation, col = c("blue"),main = "Boxplot", ylab =
+              "Quantiles")
+```
+
+```{r}
+boxplot(base_tp2$occupation, col = c("blue"),main = "Boxplot", ylab =
+              "Quantiles")
+```
+
+*Correction des valeurs aberrantes*
+
+```{r}
+base_tp2$occupation <-dplyr::recode(base_tp2$occupation,'1'='1',
+                                                '15'='5',
+                                                '22'='2',
+                                                 '23'='3')
+
+base_tp2$types_varietes <-dplyr::recode(base_tp2$types_varietes,'1 2'='1')
+```
+
+
+# Recodage et labelisation 
+
+On cherche d'acord les noms de variables dans la base
+```{r}
+colnames(base_tp2)
+# View(base_tp2)
+```
+
+## labelisation 
+```{r}
+base_tp2 <- expss::apply_labels(base_tp2,
+          region="region",
+          departement="departement",
+          sexe="sexe",
+          age="Age",
+          sit_mat="Situation matrimoniale",
+          si_chef_men="Statut dans le ménage",
+          ethnie="Ethnie",
+          occupation="Occupation",
+          formation="Formation",  
+          niveau_alphabs="Niveau d'alphabétisation",
+          # types_varietes="Quelles variétés    utilisez-vous pour la production de sésame ? ",
+          # types_varietes_1="",
+          types_varietes_2="",
+          criteres_var="Quels sont les critères de choix des variétés de sésame ?",
+          criteres_var_1="",
+          criteres_var_2="",
+          criteres_var_3="",
+          criteres_var_4="",
+          criteres_var_5="",
+          criteres_var_6="",
+          criteres_var_7="",
+          criteres_var_8="",
+          criteres_var_9="",
+          criteres_var_10="",
+          criteres_var_11="",
+          criteres_var_12="",
+          criteres_var_13="",  
+          criteres_var_14="",
+          criteres_var_15="",
+          criteres_var_16=""
+          )
+```
+
+## Recodage
+
+ *Variable sexe*
+```{r}
+base_tp2$sexe <-dplyr::recode(base_tp2$sexe,  '1'='Homme', 
+                                              '2'='Femme')
+
+```
+
+ *Variable sit_mat*
+```{r}
+base_tp2 <- base_tp2 %>%
+  mutate(sit_mat = case_when(
+    sit_mat == 1 ~ "Marié(e)",
+    sit_mat == 3 ~ "Veuf(ve)",
+    sit_mat == 4 ~ "Divorcé(e)",
+    sit_mat == 5 ~ "Séparé(e)",
+    sit_mat == 6 ~ "Célibataire",
+    TRUE ~ "NA"  # Pour toutes les autres valeurs non spécifiées
+  ))
+```
+
+ *Variable si_chef_men*
+```{r}
+base_tp2 <- base_tp2 %>%
+  mutate(si_chef_men = case_when(
+    si_chef_men == 1 ~ "femme du chef de ménage",
+    si_chef_men == 3 ~ "chef de ménage",
+    si_chef_men == 4 ~ "fils-fille du chef de ménage",
+    si_chef_men == 5 ~ "Autres",
+    TRUE ~ "NA"  # Pour toutes les autres valeurs non spécifiées
+  ))
+```
+
+*Variable ethnie*
+```{r}
+# Variable ethnie
+
+base_tp2 <- base_tp2 %>%
+  mutate(ethnie = case_when(
+    ethnie == 1 ~ "Wolof",
+    ethnie == 2 ~ "Pulaar/Toucouleur",
+    ethnie == 3 ~ "Sérére",
+    ethnie == 4 ~ "Mandika/Bambara",
+    ethnie == 5 ~ "Soninké",
+    ethnie == 6 ~ "Diola",
+    ethnie == 7 ~ "Manjack",
+    ethnie == 8 ~ "Bainouk",
+    ethnie == 9 ~ "Maures",
+    ethnie == 10 ~ "Balante",
+    TRUE ~ "NA"  # Pour toutes les autres valeurs non spécifiées
+  ))
+```
+
+*Variable occupation*
+```{r}
+base_tp2 <- base_tp2 %>%
+  mutate(occupation = case_when(
+    occupation == 1 ~ "Agriculture, Elevage Sylviculture, Pêche",
+    occupation == 2 ~ "Activités extractives",
+    occupation == 3 ~ "Activités de fabrication (Artisanat)",
+    occupation == 4 ~ "Activité de transformation",
+    occupation == 5 ~ "Production et distribution d'électricité et de gaz",
+    occupation == 16 ~ "Production et distribution d'eau, assainissement, traitement des déchets et dépollution",
+    TRUE ~ "NA"  # Pour toutes les autres valeurs non spécifiées
+  ))
+```
+
+*Variable formation*
+```{r}
+base_tp2 <- base_tp2 %>%
+  mutate(formation = case_when(
+    formation == 1 ~ "Non scolarisé",
+    formation == 2 ~ "Élémentaire",
+    formation == 3 ~ "Moyen",
+    formation == 4 ~ "Secondaire",
+    formation == 5 ~ "Licence",
+    formation == 6 ~ "Master",
+    formation == 7 ~ "Doctorat",
+    formation == 99 ~ "Ne sait pas",
+    TRUE ~ "NA"  # Pour toutes les autres valeurs non spécifiées
+  ))
+```
+
+ *Variable niveau_alphabs*
+```{r}
+base_tp2 <- base_tp2 %>%
+  mutate(niveau_alphabs = case_when(
+    niveau_alphabs == 0 ~ "Sans niveau",
+    niveau_alphabs == 1 ~ "Sait lire dans une langue",
+    niveau_alphabs == 2 ~ "Sait lire et écrire dans une langue",
+    TRUE ~ "NA"  # Pour toutes les autres valeurs non spécifiées
+  ))
+
+```
+
+ *Variable types_varietes*
+```{r}
+base_tp2 <- base_tp2 %>%
+  mutate(types_varietes = case_when(
+    types_varietes == 1 ~ "traditionnelles",
+    types_varietes == 2 ~ "Améliorées",
+    TRUE ~ 'NA'  # Pour toutes les autres valeurs non spécifiées
+  ))
+```
+ 
+ *Variable types_varietes_1*
+```{r}
+base_tp2 <- base_tp2 %>%
+  mutate(types_varietes_1 = case_when(
+    types_varietes_1 == 1 ~ "traditionnelles",
+    TRUE ~ 'NA'  # Pour toutes les autres valeurs non spécifiées
+  ))
+```
+ 
+  *Variable types_varietes_2*
+```{r}
+base_tp2 <- base_tp2 %>%
+  mutate(types_varietes_2 = case_when(
+    types_varietes_2 == 1 ~ "Améliorées",
+    TRUE ~ 'NA'  # Pour toutes les autres valeurs non spécifiées
+  ))
+```
+  
+pour ne pas à repeter le travail, je change le nom
+
+```{r}
+projet_2<-copy(base_tp2)
+```
+
+# Analyses descriptives 
+
+## Analyses univariees
+```{r}
+univarie <- function(data, var, include_na = TRUE) {
+  if (!is.data.frame(data)) {
+    stop("la base de données n'est pas un dataframe")
+  }
+  nom <- deparse(substitute(var))#Ici nous avons recuperer uniquement le nom de la variable pour éviter qu'au niveau de nos condition if ça renvoi un vecteur et par conséquent y'aura des erreur
+  if (!nom %in% names(data)) {
+    stop("cette variable n'existe pas dans la base")
+  }
+  
+  # if (!include_na) {
+  #   data <- na.omit(data)#supprimer les ligne qui ont des NA
+  # }
+  
+  # Calcul des statistiques descriptives
+  summary_stats <- summary(data[[nom]])
+  # Tracé des fréquences
+  graphe <- sjPlot::plot_frq(data, coord.flip = TRUE, nom, show.na = include_na)
+  show(graphe)
+  return(summary_stats)
+}
+```
+
+```{r}
+colnames(projet_2)
+```
+
+```{r}
+univarie(projet_2,sit_mat)
+univarie(projet_2,formation)
+univarie(projet_2,si_chef_men)
+```
+Ces pourcentages suggèrent que dans cet échantillon, une proportion relativement faible est composée de chefs de ménage (17%) et de femmes du chef de ménage (30%), tandis que la majorité des réponses (53%) sont non applicables (NA).
+
+
+```{r}
+univarie_2 <- function(data, variable){
+  obj <- data[[variable]]
+
+  ####### Variable quantitative ########
+  if (is.numeric(obj)){
+    #### Statistiques descriptives ######
+    summary_table <- projet %>% 
+      select(variable) %>% 
+        gtsummary::tbl_summary(
+          type = variable ~ "continuous2", #spécifie le type de résumé
+          statistic = list(variable ~ c("{mean}", "{sd}", "{median}", "{min}, {max}", "{p25}; {p75}","{N_miss}; {p_miss}")),
+          digits = variable ~ 2 #précisez le nombre de décimales pour l'arrondi
+           )%>% 
+           gtsummary::bold_labels() # Mettre en gras les étiquettes de la variable
+        summary_table
+    ###### Histogramme #######
+    hist(obj, 
+      col = c("blue"),
+      main = paste("Histogramme"),
+      ylab = "Frequence",
+      xlab = variable)
+            
+    ###### Boite à moustache #######
+    boxplot(obj, col = c("blue"),main = "Boxplot", ylab =
+              "Quantiles")
+            
+  ####### Variable qualitative ########
+   }
+  else if (!is.numeric(obj)){
+    summary_table <- projet_2 %>% 
+      select(variable) %>% 
+      gtsummary::tbl_summary(
+        statistic = list(variable ~ "{n} ({p}%)"),
+        digits = variable ~ 2 #précisez le nombre de décimales pour l'arrondi
+      )%>% 
+      gtsummary::bold_labels() # Mettre en gras les étiquettes de la variable
+    summary_table
+    barplot(table(obj), main="Diagramme en barre", 
+        xlab=variable,
+        col="blue")
+  }
+}
+```
+
+```{r}
+univarie_2(projet_2,"sexe")
+```
+```{r}
+univarie_2(projet_2,"occupation")
+```
+
+
+
+Dans cet échantillon, les hommes représentent 66% des participants, tandis que les femmes ne représentent que 34%.
+
+Ces pourcentages indiquent une forte prédominance des activités liées à l'agriculture, à l'élevage, à la sylviculture et à la pêche, représentant 92% de l'échantillon. Les autres catégories, telles que les activités de fabrication, les activités extractives et la production/distribution d'électricité et de gaz, représentent des proportions beaucoup plus faibles, avec 1.9% chacune.
+
+
+## Analyses bivariees
+
+```{r}
+bivarie <- function(data, variable1,variable2) {
+      data %>%
+             tbl_summary(
+                  by = variable2,
+                  include = variable1,
+                  statistic = all_categorical() ~ "{p}%",
+                  digits = all_categorical() ~ 2)
+}
+```
+
+```{r}
+colnames(projet_2)
+```
+
+```{r}
+tb1 = bivarie(projet_2,"formation","sexe")
+tb1
+```
+Ce que nous pouvons observer ici, c'est que la catégorie "Non scolarisé" est la plus courante chez les deux groupes, mais elle est plus fréquente chez les femmes (72.22%) que chez les hommes (48.57%). D'autre part, la catégorie "Élémentaire" est également plus fréquente chez les hommes (22.86%) que chez les femmes (11.11%).
+
+```{r}
+tb2 = bivarie(projet_2,"occupation","sexe")
+tb2
+```
+Il est clair que la majorité des femmes (83.33%) sont impliquées dans l'agriculture, l'élevage, la sylviculture et la pêche, tandis que la majorité des hommes (97.14%) sont également impliqués dans ces activités.
+
+Il y a des différences subtiles dans d'autres catégories. Par exemple, les femmes sont légèrement plus impliquées dans les activités de fabrication et d'extraction que les hommes, bien que les pourcentages restent assez faibles dans l'ensemble.
+
+```{r}
+tb3 = bivarie(projet_2,"niveau_alphabs","sexe")
+tb3
+```
+Chez les femmes, la majorité (61.11%) se trouve dans la catégorie "Sans niveau", suivie de "Sait lire dans une langue" (22.22%).
+Chez les hommes, bien que la catégorie "Sans niveau" soit toujours la plus représentée (42.86%), il y a une proportion significative qui sait lire et écrire dans une langue (22.86%).
+Il est également important de noter que le pourcentage de données non disponibles (NA) est plus élevé chez les hommes que chez les femmes (28.57% contre 16.67%).
+
+
+```{r}
+tb4 = bivarie(projet_2,"niveau_alphabs","sit_mat")
+tb4
+```
+Il est clair que pour les personnes mariées, la plupart se trouvent dans la catégorie "Sans niveau" (47.06%), suivie de la catégorie "NA" (25.49%). Il y a aussi une proportion notable qui sait lire et écrire dans une langue spécifique (15.69%).
+
+En revanche, pour les veufs ou veuves, toutes les réponses sont regroupées dans la catégorie "Sans niveau". Il n'y a aucune donnée dans les autres catégories.
+
+```{r}
+tb4 = bivarie(projet_2,"occupation","sit_mat")
+tb4
+```
+On peut observer que pour les personnes mariées, la grande majorité est impliquée dans l'agriculture, l'élevage, la sylviculture et la pêche (92.16%). Il y a également une petite proportion impliquée dans les activités de fabrication et extractives.
+
+En revanche, pour les veufs ou veuves, toutes les réponses sont regroupées dans la catégorie "Agriculture, Elevage Sylviculture, Pêche". Il n'y a aucune donnée dans les autres catégories.
+
+`
+
+
+
+
+
+
+
+
